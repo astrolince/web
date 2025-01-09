@@ -205,7 +205,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!awaitingPassword) {
           commandHistory.unshift(cmd); // Add to start of array
           historyIndex = -1; // Reset history index
-          terminal.print(`> ${cmd}`);
+          terminal.print(`\n$ ${cmd}`);
         } else {
           terminal.print(`${"*".repeat(cmd.length)}`);
         }
