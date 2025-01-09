@@ -62,6 +62,22 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!terminalActive) {
       terminalActive = true;
       terminal.elem.classList.add("active");
+
+      // Add window control buttons
+      const controls = document.createElement("div");
+      controls.className = "window-controls";
+      controls.innerHTML = `
+        <button class="window-button close" title="Close"></button>
+        <button class="window-button minimize" title="Minimize"></button>
+        <button class="window-button maximize" title="Maximize"></button>
+      `;
+      terminal.elem.appendChild(controls);
+
+      // Add click handler for close button
+      controls.querySelector(".close").addEventListener("click", () => {
+        commands.exit();
+      });
+
       term.open(document.getElementById("terminal"));
       term.clear();
       term.focus();
