@@ -61,9 +61,10 @@ a {
 #terminalOutput {
   margin-bottom: 10px;
   word-wrap: break-word;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  overflow-y: auto;
+  height: calc(90vh - 80px);
+  overflow-y: scroll;
+}
+
+#terminalOutput > div {
+  min-height: min-content;
 }
