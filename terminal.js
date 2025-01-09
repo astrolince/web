@@ -157,11 +157,9 @@ document.addEventListener("DOMContentLoaded", () => {
       terminal.print("  clear    - Clear terminal screen");
       terminal.print("  exit     - Close terminal");
       terminal.print("  access   - Request access to restricted area");
-      terminal.prompt();
     },
     clear: () => {
       terminal.clear();
-      terminal.prompt();
     },
     exit: () => {
       terminal.print("Closing terminal...");
@@ -265,6 +263,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (command in commands) {
       commands[command](args);
+      if (!awaitingPassword && command !== 'exit') {
+        terminal.prompt();
+      }
     } else {
       terminal.print(`Command not found: ${command}`);
       terminal.print("Type 'help' for available commands");
