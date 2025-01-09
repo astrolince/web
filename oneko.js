@@ -67,9 +67,8 @@
     nekoEl.style.left = "16px";
     nekoEl.style.top = "16px";
     nekoEl.style.pointerEvents = "auto";
-    nekoEl.style.cursor = "pointer";
 
-    // Add click handler
+    // Add click handler without changing cursor
     nekoEl.addEventListener("click", () => {
       clickCount++;
       if (clickTimeout) clearTimeout(clickTimeout);
