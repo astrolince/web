@@ -65,8 +65,11 @@ document.addEventListener("DOMContentLoaded", () => {
     exit: () => {
       terminal.print("Closing terminal...");
       setTimeout(() => {
+        terminal.clear();
         terminal.elem.classList.remove("active");
         terminalActive = false;
+        awaitingPassword = false;
+        terminal.input.classList.remove("password");
         document.title = blinkStates[0];
       }, 1000);
     },
@@ -140,6 +143,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         terminal.print("Type 'help' to see available commands");
         awaitingPassword = false;
+        terminal.input.classList.remove("password");
       } catch (e) {
         terminal.print(`Error: ${e.message}`);
         terminal.print("Access denied.");
@@ -148,6 +152,7 @@ document.addEventListener("DOMContentLoaded", () => {
           terminal.elem.classList.remove("active");
           terminalActive = false;
           awaitingPassword = false;
+          terminal.input.classList.remove("password");
           document.title = blinkStates[0];
         }, 2000);
       }
