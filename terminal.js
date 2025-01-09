@@ -13,41 +13,140 @@ document.title = blinkStates[0];
 // Terminal configuration
 let terminalActive = false;
 let awaitingPassword = false;
+let term = null;
+let commandBuffer = "";
+let commandHistory = [];
+let historyIndex = -1;
 
 document.addEventListener("DOMContentLoaded", () => {
-  // Command history
-  let commandHistory = [];
-  let historyIndex = -1;
+  // Initialize xterm.js
+  term = new Terminal({
+    cursorBlink: true,
+    theme: {
+      background: "rgba(0, 0, 0, 0.9)",
+      foreground: "#0f0",
+      cursor: "#0f0",
+    },
+    fontSize: 16,
+    fontFamily: "monospace",
+    rows: 24,
+    cols: 80,
+    scrollback: 1000,
+  });
 
   const terminal = {
     elem: document.getElementById("secretTerminal"),
-    input: document.getElementById("terminalInput"),
-    output: document.getElementById("terminalOutput"),
 
     print: (text) => {
-      terminal.output.innerHTML =
-        `<div>${text}</div>` + terminal.output.innerHTML;
-      terminal.scrollToBottom();
+      term.writeln(text);
     },
 
     clear: () => {
-      terminal.output.innerHTML = "";
+      term.clear();
     },
 
-    scrollToBottom: () => {
-      terminal.output.scrollTop = terminal.output.scrollHeight;
+    prompt: () => {
+      term.write("\r\n$ ");
     },
   };
 
   const activateTerminal = () => {
-    terminalActive = true;
-    terminal.elem.classList.add("active");
-    terminal.clear();
-    terminal.print("=== RESTRICTED ACCESS TERMINAL ===");
-    terminal.print("Type 'help' to see available commands");
-    terminal.input.focus();
-    terminal.scrollToBottom();
+    if (!terminalActive) {
+      terminalActive = true;
+      terminal.elem.classList.add("active");
+      term.open(document.getElementById("terminal"));
+      term.clear();
+      term.focus();
+      terminal.print("=== RESTRICTED ACCESS TERMINAL ===");
+      terminal.print("Type 'help' to see available commands");
+      terminal.prompt();
+
+      // Handle input
+      term.onData((data) => {
+        if (awaitingPassword) {
+          // Handle password input
+          switch (data) {
+            case "\r": // Enter
+              term.writeln("");
+              processCommand(commandBuffer);
+              commandBuffer = "";
+              document.title = title.text + title.prompt;
+              break;
+            case "\u007F": // Backspace
+              if (commandBuffer.length > 0) {
+                commandBuffer = commandBuffer.slice(0, -1);
+                term.write("\b \b");
+                document.title = title.text + title.prompt + commandBuffer;
+              }
+              break;
+            default:
+              if (data >= String.fromCharCode(32)) {
+                commandBuffer += data;
+                term.write("*");
+                document.title =
+                  title.text + title.prompt + "*".repeat(commandBuffer.length);
+              }
+          }
+        } else {
+          // Handle normal input
+          switch (data) {
+            case "\r": // Enter
+              if (commandBuffer.trim()) {
+                term.writeln("");
+                processCommand(commandBuffer.trim());
+                if (!awaitingPassword) {
+                  commandHistory.unshift(commandBuffer);
+                  historyIndex = -1;
+                }
+                commandBuffer = "";
+                document.title = title.text + title.prompt;
+              } else {
+                terminal.prompt();
+              }
+              break;
+            case "\u007F": // Backspace
+              if (commandBuffer.length > 0) {
+                commandBuffer = commandBuffer.slice(0, -1);
+                term.write("\b \b");
+                document.title = title.text + title.prompt + commandBuffer;
+              }
+              break;
+            case "\u001b[A": // Up arrow
+              if (
+                !awaitingPassword &&
+                historyIndex < commandHistory.length - 1
+              ) {
+                // Clear current line
+                term.write("\r$ " + " ".repeat(commandBuffer.length) + "\r$ ");
+                historyIndex++;
+                commandBuffer = commandHistory[historyIndex];
+                term.write(commandBuffer);
+                document.title = title.text + title.prompt + commandBuffer;
+              }
+              break;
+            case "\u001b[B": // Down arrow
+              if (!awaitingPassword && historyIndex > -1) {
+                // Clear current line
+                term.write("\r$ " + " ".repeat(commandBuffer.length) + "\r$ ");
+                historyIndex--;
+                commandBuffer =
+                  historyIndex >= 0 ? commandHistory[historyIndex] : "";
+                term.write(commandBuffer);
+                document.title = title.text + title.prompt + commandBuffer;
+              }
+              break;
+            default:
+              if (data >= String.fromCharCode(32)) {
+                commandBuffer += data;
+                term.write(data);
+                document.title = title.text + title.prompt + commandBuffer;
+              }
+          }
+        }
+      });
+    }
   };
+
   // Make activateTerminal available globally
   window.activateTerminal = activateTerminal;
 
@@ -58,9 +157,11 @@ document.addEventListener("DOMContentLoaded", () => {
       terminal.print("  clear    - Clear terminal screen");
       terminal.print("  exit     - Close terminal");
       terminal.print("  access   - Request access to restricted area");
+      terminal.prompt();
     },
     clear: () => {
       terminal.clear();
+      terminal.prompt();
     },
     exit: () => {
       terminal.print("Closing terminal...");
@@ -69,8 +170,9 @@ document.addEventListener("DOMContentLoaded", () => {
         terminal.elem.classList.remove("active");
         terminalActive = false;
         awaitingPassword = false;
-        terminal.input.classList.remove("password");
         document.title = blinkStates[0];
+        term.dispose();
+        term = null;
       }, 1000);
     },
     access: () => {
@@ -81,7 +183,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const processCommand = async (cmd) => {
     if (awaitingPassword) {
-      terminal.input.classList.add("password");
       terminal.print("Verifying access...");
       try {
         // Load and attempt to decrypt the secret commands
@@ -143,7 +244,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         terminal.print("Type 'help' to see available commands");
         awaitingPassword = false;
-        terminal.input.classList.remove("password");
+        terminal.prompt();
       } catch (e) {
         terminal.print(`Error: ${e.message}`);
         terminal.print("Access denied.");
@@ -152,8 +253,9 @@ document.addEventListener("DOMContentLoaded", () => {
           terminal.elem.classList.remove("active");
           terminalActive = false;
           awaitingPassword = false;
-          terminal.input.classList.remove("password");
           document.title = blinkStates[0];
+          term.dispose();
+          term = null;
         }, 2000);
       }
       return;
@@ -166,64 +268,9 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       terminal.print(`Command not found: ${command}`);
       terminal.print("Type 'help' for available commands");
+      terminal.prompt();
     }
   };
-
-  // Handle command history navigation
-  terminal.input.addEventListener("keydown", (e) => {
-    if (e.key === "ArrowUp") {
-      e.preventDefault();
-      if (historyIndex < commandHistory.length - 1) {
-        historyIndex++;
-        terminal.input.value = commandHistory[historyIndex];
-        // Move cursor to end of input
-        setTimeout(() => {
-          terminal.input.selectionStart = terminal.input.selectionEnd =
-            terminal.input.value.length;
-        }, 0);
-      }
-    } else if (e.key === "ArrowDown") {
-      e.preventDefault();
-      if (historyIndex > -1) {
-        historyIndex--;
-        terminal.input.value =
-          historyIndex >= 0 ? commandHistory[historyIndex] : "";
-        // Move cursor to end of input
-        setTimeout(() => {
-          terminal.input.selectionStart = terminal.input.selectionEnd =
-            terminal.input.value.length;
-        }, 0);
-      }
-    }
-  });
-
-  terminal.input.addEventListener("keypress", async (e) => {
-    if (e.key === "Enter") {
-      const cmd = terminal.input.value.trim();
-      if (cmd) {
-        // Only add non-empty commands to history
-        if (!awaitingPassword) {
-          commandHistory.unshift(cmd); // Add to start of array
-          historyIndex = -1; // Reset history index
-          terminal.print(`\n$ ${cmd}`);
-        } else {
-          terminal.print(`${"*".repeat(cmd.length)}`);
-        }
-      }
-      await processCommand(cmd);
-      terminal.input.value = "";
-      document.title = title.text + title.prompt;
-    }
-  });
-
-  // Update title while typing and scroll to bottom
-  terminal.input.addEventListener("input", (e) => {
-    if (terminalActive) {
-      const currentInput = terminal.input.value.trim();
-      document.title = title.text + title.prompt + currentInput;
-      terminal.scrollToBottom();
-    }
-  });
 
   // Title blink effect
   const blinkInterval = setInterval(() => {
@@ -237,9 +284,8 @@ document.addEventListener("DOMContentLoaded", () => {
           : blinkStates[0];
       }
     } else {
-      // When terminal is active, blink cursor at the end of current input
       const baseTitle =
-        title.text + title.prompt + (terminal.input.value.trim() || "");
+        title.text + title.prompt + (commandBuffer.trim() || "");
       document.title =
         document.title === baseTitle + title.cursor
           ? baseTitle
@@ -259,9 +305,8 @@ document.addEventListener("DOMContentLoaded", () => {
         .trim();
       activateTerminal();
       setTimeout(() => {
-        terminal.print(`> ${command}`);
+        term.write(`${command}\r\n`);
         processCommand(command);
-        terminal.input.value = "";
       }, 100);
     }
   };
