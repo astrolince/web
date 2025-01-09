@@ -25,7 +25,8 @@ document.addEventListener("DOMContentLoaded", () => {
     output: document.getElementById("terminalOutput"),
 
     print: (text) => {
-      terminal.output.innerHTML += `<div>${text}</div>`;
+      terminal.output.innerHTML =
+        `<div>${text}</div>` + terminal.output.innerHTML;
       terminal.scrollToBottom();
     },
 
@@ -34,7 +35,6 @@ document.addEventListener("DOMContentLoaded", () => {
     },
 
     scrollToBottom: () => {
-      terminal.elem.scrollTop = terminal.elem.scrollHeight;
       terminal.output.scrollTop = terminal.output.scrollHeight;
     },
   };
@@ -78,6 +78,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const processCommand = async (cmd) => {
     if (awaitingPassword) {
+      terminal.input.classList.add("password");
       terminal.print("Verifying access...");
       try {
         // Load and attempt to decrypt the secret commands
@@ -196,10 +197,14 @@ document.addEventListener("DOMContentLoaded", () => {
       const cmd = terminal.input.value.trim();
       if (cmd) {
         // Only add non-empty commands to history
-        commandHistory.unshift(cmd); // Add to start of array
-        historyIndex = -1; // Reset history index
+        if (!awaitingPassword) {
+          commandHistory.unshift(cmd); // Add to start of array
+          historyIndex = -1; // Reset history index
+          terminal.print(`> ${cmd}`);
+        } else {
+          terminal.print(`${"*".repeat(cmd.length)}`);
+        }
       }
-      terminal.print(`> ${cmd}`);
       await processCommand(cmd);
       terminal.input.value = "";
       document.title = title.text + title.prompt;
