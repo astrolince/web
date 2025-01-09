@@ -26,3 +26,33 @@ a {
 .navigation-menu {
   margin-bottom: 0;
 }
+
+.secret-terminal {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px;
+  height: 400px;
+  background: rgba(0, 0, 0, 0.9);
+  border: 1px solid #333;
+  padding: 20px;
+  font-family: monospace;
+  color: #0f0;
+  z-index: 9999;
+  overflow-y: auto;
+}
+
+.secret-terminal.active {
+  display: block;
+}
+
+.terminal-input {
+  background: transparent;
+  border: none;
+  color: #0f0;
+  font-family: monospace;
+  width: 100%;
+  outline: none;
+}
