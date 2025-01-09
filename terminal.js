@@ -267,7 +267,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (command in commands) {
       commands[command](args);
-      if (!awaitingPassword && command !== 'exit') {
+      if (!awaitingPassword && command !== "exit") {
         terminal.prompt();
       }
     } else {
