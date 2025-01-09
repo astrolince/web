@@ -14,6 +14,7 @@ document.title = blinkStates[0];
 let terminalActive = false;
 let awaitingPassword = false;
 let term = null;
+let fitAddon = null;
 let commandBuffer = "";
 let cursorPosition = 0;
 let commandHistory = [];
@@ -30,10 +31,12 @@ document.addEventListener("DOMContentLoaded", () => {
     },
     fontSize: 16,
     fontFamily: "monospace",
-    rows: 24,
-    cols: 80,
     scrollback: 1000,
   });
+
+  // Initialize and load the fit addon
+  fitAddon = new FitAddon.FitAddon();
+  term.loadAddon(fitAddon);
 
   const terminal = {
     elem: document.getElementById("secretTerminal"),
@@ -62,6 +65,12 @@ document.addEventListener("DOMContentLoaded", () => {
       term.open(document.getElementById("terminal"));
       term.clear();
       term.focus();
+
+      // Fit terminal to container
+      setTimeout(() => {
+        fitAddon.fit();
+      }, 0);
+
       terminal.print("=== RESTRICTED ACCESS TERMINAL ===");
       terminal.print("Type 'help' to see available commands");
       terminal.prompt();
@@ -377,4 +386,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Check title changes frequently
   const titleCheckInterval = setInterval(checkTitleChange, 100);
+
+  // Add window resize handler
+  window.addEventListener("resize", () => {
+    if (terminalActive) {
+      fitAddon.fit();
+    }
+  });
 });

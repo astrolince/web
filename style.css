@@ -35,22 +35,12 @@ a {
   transform: translate(-50%, -50%);
   width: min(900px, 95vw);
   height: min(600px, 90vh);
-  background: rgba(0, 0, 0, 0.9);
-  border: 1px solid #333;
-  padding: 20px;
-  z-index: 9999;
 }
 
 .secret-terminal.active {
   display: block;
 }
 
-#terminal {
-  width: 100%;
-  height: 100%;
-}
-
 .xterm {
-  padding: 10px;
-  height: 100%;
+  padding: 20px;
 }
