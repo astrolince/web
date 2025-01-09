@@ -43,6 +43,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     clear: () => {
       term.clear();
+      term.reset();
+      term.write("\x1b[H"); // Move cursor to home position
+      terminal.print("=== RESTRICTED ACCESS TERMINAL ===");
+      terminal.print("Type 'help' to see available commands");
     },
 
     prompt: () => {
