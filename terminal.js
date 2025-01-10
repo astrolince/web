@@ -246,8 +246,16 @@ document.addEventListener("DOMContentLoaded", () => {
       controls.querySelector(".maximize").addEventListener("click", () => {
         if (terminal.elem.classList.contains("maximized")) {
           terminal.elem.classList.remove("maximized");
+          // Restore the transform for centered positioning
+          terminal.elem.style.transform = "translate(-50%, -50%)";
+          terminal.elem.style.left = "50%";
+          terminal.elem.style.top = "50%";
         } else {
           terminal.elem.classList.add("maximized");
+          // Reset positioning for maximized state
+          terminal.elem.style.transform = "none";
+          terminal.elem.style.left = "0";
+          terminal.elem.style.top = "0";
         }
         state.fitAddon.fit();
       });
