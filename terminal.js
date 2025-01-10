@@ -162,6 +162,9 @@ document.addEventListener("DOMContentLoaded", () => {
       // Clean up any existing elements first
       terminal.elem.innerHTML = "";
 
+      // Reset taskbar style
+      taskbar.style.display = "";
+
       // Reinitialize terminal if needed
       if (!state.term) {
         initializeTerminal();
