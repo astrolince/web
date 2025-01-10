@@ -136,6 +136,7 @@ document.addEventListener("DOMContentLoaded", () => {
     },
 
     prompt: () => {
+      document.title = title.text + title.prompt;
       state.term.write("\r\n$ ");
     },
 
@@ -296,7 +297,6 @@ document.addEventListener("DOMContentLoaded", () => {
               processCommand(state.commandBuffer);
               state.commandBuffer = "";
               state.cursorPosition = 0;
-              document.title = title.text + title.prompt;
               break;
             case "\u007F": // Backspace
               if (state.commandBuffer.length > 0 && state.cursorPosition > 0) {
@@ -313,10 +313,6 @@ document.addEventListener("DOMContentLoaded", () => {
                   state.term.write(" ");
                   state.term.write("\b".repeat(end.length + 1));
                 }
-                document.title =
-                  title.text +
-                  title.prompt +
-                  "*".repeat(state.commandBuffer.length);
               }
               break;
             case "\u001b[D": // Left arrow
@@ -345,10 +341,6 @@ document.addEventListener("DOMContentLoaded", () => {
                   state.term.write("*".repeat(end.length));
                   state.term.write("\b".repeat(end.length));
                 }
-                document.title =
-                  title.text +
-                  title.prompt +
-                  "*".repeat(state.commandBuffer.length);
               }
           }
         } else {
@@ -364,7 +356,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
                 state.commandBuffer = "";
                 state.cursorPosition = 0;
-                document.title = title.text + title.prompt;
               } else {
                 terminal.prompt();
               }
@@ -569,6 +560,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const commandLower = command.toLowerCase();
 
     if (commandLower in commands) {
+      document.title = title.text + title.prompt + commandLower;
       commands[commandLower](args);
       if (!state.awaitingPassword && commandLower !== "exit") {
         terminal.prompt();
@@ -591,7 +583,7 @@ document.addEventListener("DOMContentLoaded", () => {
           ? blinkStates[1]
           : blinkStates[0];
       }
-    } else {
+    } else if (!state.awaitingPassword) {
       const baseTitle =
         title.text + title.prompt + (state.commandBuffer.trim() || "");
       document.title =
