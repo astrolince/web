@@ -141,9 +141,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     minimize: () => {
       terminal.elem.classList.add("minimized");
-      terminal.elem.classList.remove("maximized");
       taskbar.classList.add("active");
-      taskbar.style.display = "flex";
     },
 
     maximize: () => {
@@ -154,8 +152,7 @@ document.addEventListener("DOMContentLoaded", () => {
     },
 
     restore: () => {
-      terminal.elem.classList.remove("minimized", "maximized");
-      taskbar.classList.remove("active");
+      terminal.elem.classList.remove("minimized");
       state.fitAddon.fit();
     },
   };
@@ -202,9 +199,12 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       controls.querySelector(".maximize").addEventListener("click", () => {
-        terminal.elem.classList.contains("maximized")
-          ? terminal.restore()
-          : terminal.maximize();
+        if (terminal.elem.classList.contains("maximized")) {
+          terminal.elem.classList.remove("maximized");
+        } else {
+          terminal.elem.classList.add("maximized");
+        }
+        state.fitAddon.fit();
       });
 
       state.term.open(document.getElementById("terminal"));

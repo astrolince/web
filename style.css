@@ -71,6 +71,7 @@ a {
   border-bottom: 1px solid #444;
   height: 24px;
   line-height: 24px;
+  user-select: none;
 }
 
 .terminal-icon {
@@ -108,28 +109,6 @@ a {
 
 .terminal-taskbar.active {
   display: flex;
-}
-
-.secret-terminal::before {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: #2a2a2a;
-  color: #ccc;
-  padding: 0px 16px;
-  font-family: system-ui, -apple-system, sans-serif;
-  font-size: 14px;
-  border-bottom: 1px solid #444;
-  position: relative;
-  height: 24px;
-  line-height: 24px;
-}
-
-.secret-terminal::before::before {
-  content: ">";
-  font-family: monospace;
-  font-weight: bold;
-  color: #0f0;
 }
 
 #terminal {
