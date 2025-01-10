@@ -1,90 +1,219 @@
+// Terminal state management
+class TerminalState {
+  constructor() {
+    this.active = false;
+    this.awaitingPassword = false;
+    this.term = null;
+    this.fitAddon = null;
+    this.commandBuffer = "";
+    this.cursorPosition = 0;
+    this.commandHistory = [];
+    this.historyIndex = -1;
+    this.intervals = [];
+    this.passwordTimer = null;
+    this.PASSWORD_TIMEOUT = 30000; // 30 seconds
+    this.resizeHandler = null;
+  }
+
+  startPasswordTimeout(onTimeout) {
+    this.clearPasswordTimeout();
+    this.passwordTimer = setTimeout(() => {
+      if (this.awaitingPassword) {
+        onTimeout();
+      }
+    }, this.PASSWORD_TIMEOUT);
+  }
+
+  clearPasswordTimeout() {
+    if (this.passwordTimer) {
+      clearTimeout(this.passwordTimer);
+      this.passwordTimer = null;
+    }
+  }
+
+  cleanup() {
+    this.intervals.forEach(clearInterval);
+    this.intervals = [];
+    this.clearPasswordTimeout();
+    if (this.term) {
+      this.term.dispose();
+      this.term = null;
+    }
+    if (this.resizeHandler) {
+      window.removeEventListener("resize", this.resizeHandler);
+      this.resizeHandler = null;
+    }
+    this.active = false;
+    this.awaitingPassword = false;
+    this.commandBuffer = "";
+    this.cursorPosition = 0;
+    this.commandHistory = [];
+    this.historyIndex = -1;
+  }
+
+  addInterval(interval) {
+    this.intervals.push(interval);
+  }
+}
+
 const title = {
   text: document.title,
   prompt: " $ ",
   cursor: "_",
 };
+
 const blinkStates = [
   title.text + title.prompt,
   title.text + title.prompt + title.cursor,
 ];
+
 const blinkTime = 530;
 document.title = blinkStates[0];
 
-// Terminal configuration
-let terminalActive = false;
-let awaitingPassword = false;
-let term = null;
-let fitAddon = null;
-let commandBuffer = "";
-let cursorPosition = 0;
-let commandHistory = [];
-let historyIndex = -1;
-
 document.addEventListener("DOMContentLoaded", () => {
-  // Initialize xterm.js
-  term = new Terminal({
-    cursorBlink: true,
-    theme: {
-      background: "rgba(0, 0, 0, 0.9)",
-      foreground: "#0f0",
-      cursor: "#0f0",
-    },
-    fontSize: 16,
-    fontFamily: "monospace",
-    scrollback: 1000,
+  const state = new TerminalState();
+
+  // Create taskbar element
+  const taskbar = document.createElement("div");
+  taskbar.className = "terminal-taskbar";
+  taskbar.innerHTML = `<span class="terminal-icon">&gt;</span>Terminal`;
+  document.body.appendChild(taskbar);
+
+  taskbar.addEventListener("click", () => {
+    terminal.restore();
+    taskbar.classList.remove("active");
   });
 
-  // Initialize and load the fit addon
-  fitAddon = new FitAddon.FitAddon();
-  term.loadAddon(fitAddon);
+  const closeTerminal = () => {
+    // Remove all terminal classes
+    terminal.elem.classList.remove("active", "minimized", "maximized");
+    // Reset title
+    document.title = blinkStates[0];
+    // Clear the terminal container before cleanup
+    terminal.elem.innerHTML = "";
+    // Clean up state
+    state.cleanup();
+    // Remove taskbar
+    taskbar.classList.remove("active");
+    taskbar.style.display = "none";
+  };
+
+  const initializeTerminal = () => {
+    // Initialize xterm.js
+    state.term = new Terminal({
+      cursorBlink: true,
+      theme: {
+        background: "rgba(0, 0, 0, 0.9)",
+        foreground: "#0f0",
+        cursor: "#0f0",
+      },
+      fontSize: 16,
+      fontFamily: "monospace",
+      scrollback: 1000,
+    });
+
+    // Initialize and load the fit addon
+    state.fitAddon = new FitAddon.FitAddon();
+    state.term.loadAddon(state.fitAddon);
+  };
+
+  // Initialize terminal first time
+  initializeTerminal();
 
   const terminal = {
     elem: document.getElementById("secretTerminal"),
 
     print: (text) => {
-      term.writeln(text);
+      state.term.writeln(text);
     },
 
     clear: () => {
-      term.clear();
-      term.reset();
-      term.write("\x1b[H"); // Move cursor to home position
+      state.term.clear();
+      state.term.reset();
+      state.term.write("\x1b[H"); // Move cursor to home position
       terminal.print("=== RESTRICTED ACCESS TERMINAL ===");
       terminal.print("Type 'help' to see available commands");
     },
 
     prompt: () => {
-      term.write("\r\n$ ");
+      state.term.write("\r\n$ ");
+    },
+
+    minimize: () => {
+      terminal.elem.classList.add("minimized");
+      terminal.elem.classList.remove("maximized");
+      taskbar.classList.add("active");
+      taskbar.style.display = "flex";
+    },
+
+    maximize: () => {
+      terminal.elem.classList.remove("minimized");
+      terminal.elem.classList.add("maximized");
+      taskbar.classList.remove("active");
+      state.fitAddon.fit();
+    },
+
+    restore: () => {
+      terminal.elem.classList.remove("minimized", "maximized");
+      taskbar.classList.remove("active");
+      state.fitAddon.fit();
     },
   };
 
   const activateTerminal = () => {
-    if (!terminalActive) {
-      terminalActive = true;
+    if (!state.active) {
+      // Clean up any existing elements first
+      terminal.elem.innerHTML = "";
+
+      // Reinitialize terminal if needed
+      if (!state.term) {
+        initializeTerminal();
+      }
+
+      state.active = true;
       terminal.elem.classList.add("active");
+
+      // Add title bar
+      const titleBar = document.createElement("div");
+      titleBar.className = "terminal-title";
+      titleBar.innerHTML = `<span class="terminal-icon">&gt;</span>Terminal`;
+      terminal.elem.appendChild(titleBar);
+
+      // Add terminal container
+      const terminalContainer = document.createElement("div");
+      terminalContainer.id = "terminal";
+      terminal.elem.appendChild(terminalContainer);
 
       // Add window control buttons
       const controls = document.createElement("div");
       controls.className = "window-controls";
       controls.innerHTML = `
-        <button class="window-button close" title="Close"></button>
         <button class="window-button minimize" title="Minimize"></button>
         <button class="window-button maximize" title="Maximize"></button>
+        <button class="window-button close" title="Close"></button>
       `;
-      terminal.elem.appendChild(controls);
+      titleBar.appendChild(controls);
 
-      // Add click handler for close button
-      controls.querySelector(".close").addEventListener("click", () => {
-        commands.exit();
+      // Add click handlers for window controls
+      controls.querySelector(".close").addEventListener("click", closeTerminal);
+
+      controls.querySelector(".minimize").addEventListener("click", () => {
+        terminal.minimize();
       });
 
-      term.open(document.getElementById("terminal"));
-      term.clear();
-      term.focus();
+      controls.querySelector(".maximize").addEventListener("click", () => {
+        terminal.elem.classList.contains("maximized")
+          ? terminal.restore()
+          : terminal.maximize();
+      });
+
+      state.term.open(document.getElementById("terminal"));
+      state.term.clear();
+      state.term.focus();
 
       // Fit terminal to container
       setTimeout(() => {
-        fitAddon.fit();
+        state.fitAddon.fit();
       }, 0);
 
       terminal.print("=== RESTRICTED ACCESS TERMINAL ===");
@@ -92,142 +221,168 @@ document.addEventListener("DOMContentLoaded", () => {
       terminal.prompt();
 
       // Handle input
-      term.onData((data) => {
-        if (awaitingPassword) {
+      state.term.onData((data) => {
+        if (state.awaitingPassword) {
           // Handle password input
           switch (data) {
             case "\r": // Enter
-              term.writeln("");
-              processCommand(commandBuffer);
-              commandBuffer = "";
-              cursorPosition = 0;
+              state.term.writeln("");
+              processCommand(state.commandBuffer);
+              state.commandBuffer = "";
+              state.cursorPosition = 0;
               document.title = title.text + title.prompt;
               break;
             case "\u007F": // Backspace
-              if (commandBuffer.length > 0 && cursorPosition > 0) {
-                const start = commandBuffer.slice(0, cursorPosition - 1);
-                const end = commandBuffer.slice(cursorPosition);
-                commandBuffer = start + end;
-                cursorPosition--;
-                term.write("\b \b");
+              if (state.commandBuffer.length > 0 && state.cursorPosition > 0) {
+                const start = state.commandBuffer.slice(
+                  0,
+                  state.cursorPosition - 1
+                );
+                const end = state.commandBuffer.slice(state.cursorPosition);
+                state.commandBuffer = start + end;
+                state.cursorPosition--;
+                state.term.write("\b \b");
                 if (end.length > 0) {
-                  term.write("*".repeat(end.length));
-                  term.write(" ");
-                  term.write("\b".repeat(end.length + 1));
+                  state.term.write("*".repeat(end.length));
+                  state.term.write(" ");
+                  state.term.write("\b".repeat(end.length + 1));
                 }
                 document.title =
-                  title.text + title.prompt + "*".repeat(commandBuffer.length);
+                  title.text +
+                  title.prompt +
+                  "*".repeat(state.commandBuffer.length);
               }
               break;
             case "\u001b[D": // Left arrow
-              if (cursorPosition > 0) {
-                cursorPosition--;
-                term.write(data);
+              if (state.cursorPosition > 0) {
+                state.cursorPosition--;
+                state.term.write(data);
               }
               break;
             case "\u001b[C": // Right arrow
-              if (cursorPosition < commandBuffer.length) {
-                cursorPosition++;
-                term.write(data);
+              if (state.cursorPosition < state.commandBuffer.length) {
+                state.cursorPosition++;
+                state.term.write(data);
               }
               break;
             default:
               if (data >= String.fromCharCode(32)) {
-                const start = commandBuffer.slice(0, cursorPosition);
-                const end = commandBuffer.slice(cursorPosition);
-                commandBuffer = start + data + end;
-                cursorPosition++;
-                term.write("*");
+                const start = state.commandBuffer.slice(
+                  0,
+                  state.cursorPosition
+                );
+                const end = state.commandBuffer.slice(state.cursorPosition);
+                state.commandBuffer = start + data + end;
+                state.cursorPosition++;
+                state.term.write("*");
                 if (end.length > 0) {
-                  term.write("*".repeat(end.length));
-                  term.write("\b".repeat(end.length));
+                  state.term.write("*".repeat(end.length));
+                  state.term.write("\b".repeat(end.length));
                 }
                 document.title =
-                  title.text + title.prompt + "*".repeat(commandBuffer.length);
+                  title.text +
+                  title.prompt +
+                  "*".repeat(state.commandBuffer.length);
               }
           }
         } else {
           // Handle normal input
           switch (data) {
             case "\r": // Enter
-              if (commandBuffer.trim()) {
-                term.writeln("");
-                processCommand(commandBuffer.trim());
-                if (!awaitingPassword) {
-                  commandHistory.unshift(commandBuffer);
-                  historyIndex = -1;
+              if (state.commandBuffer.trim()) {
+                state.term.writeln("");
+                processCommand(state.commandBuffer.trim());
+                if (!state.awaitingPassword) {
+                  state.commandHistory.unshift(state.commandBuffer);
+                  state.historyIndex = -1;
                 }
-                commandBuffer = "";
-                cursorPosition = 0;
+                state.commandBuffer = "";
+                state.cursorPosition = 0;
                 document.title = title.text + title.prompt;
               } else {
                 terminal.prompt();
               }
               break;
             case "\u007F": // Backspace
-              if (commandBuffer.length > 0 && cursorPosition > 0) {
-                const start = commandBuffer.slice(0, cursorPosition - 1);
-                const end = commandBuffer.slice(cursorPosition);
-                commandBuffer = start + end;
-                cursorPosition--;
+              if (state.commandBuffer.length > 0 && state.cursorPosition > 0) {
+                const start = state.commandBuffer.slice(
+                  0,
+                  state.cursorPosition - 1
+                );
+                const end = state.commandBuffer.slice(state.cursorPosition);
+                state.commandBuffer = start + end;
+                state.cursorPosition--;
                 // Clear from cursor to end of line
-                term.write("\b \b"); // Remove character at cursor
+                state.term.write("\b \b"); // Remove character at cursor
                 if (end.length > 0) {
-                  term.write(end); // Rewrite the rest of the line
-                  term.write(" "); // Clear last character
+                  state.term.write(end); // Rewrite the rest of the line
+                  state.term.write(" "); // Clear last character
                   // Move cursor back to position
-                  term.write("\b".repeat(end.length + 1));
+                  state.term.write("\b".repeat(end.length + 1));
                 }
-                document.title = title.text + title.prompt + commandBuffer;
+                document.title =
+                  title.text + title.prompt + state.commandBuffer;
               }
               break;
             case "\u001b[D": // Left arrow
-              if (cursorPosition > 0) {
-                cursorPosition--;
-                term.write(data);
+              if (state.cursorPosition > 0) {
+                state.cursorPosition--;
+                state.term.write(data);
               }
               break;
             case "\u001b[C": // Right arrow
-              if (cursorPosition < commandBuffer.length) {
-                cursorPosition++;
-                term.write(data);
+              if (state.cursorPosition < state.commandBuffer.length) {
+                state.cursorPosition++;
+                state.term.write(data);
               }
               break;
             case "\u001b[A": // Up arrow
               if (
-                !awaitingPassword &&
-                historyIndex < commandHistory.length - 1
+                !state.awaitingPassword &&
+                state.historyIndex < state.commandHistory.length - 1
               ) {
                 // Clear current line
-                term.write("\r$ " + " ".repeat(commandBuffer.length) + "\r$ ");
-                historyIndex++;
-                commandBuffer = commandHistory[historyIndex];
-                cursorPosition = commandBuffer.length;
-                term.write(commandBuffer);
-                document.title = title.text + title.prompt + commandBuffer;
+                state.term.write(
+                  "\r$ " + " ".repeat(state.commandBuffer.length) + "\r$ "
+                );
+                state.historyIndex++;
+                state.commandBuffer = state.commandHistory[state.historyIndex];
+                state.cursorPosition = state.commandBuffer.length;
+                state.term.write(state.commandBuffer);
+                document.title =
+                  title.text + title.prompt + state.commandBuffer;
               }
               break;
             case "\u001b[B": // Down arrow
-              if (!awaitingPassword && historyIndex > -1) {
+              if (!state.awaitingPassword && state.historyIndex > -1) {
                 // Clear current line
-                term.write("\r$ " + " ".repeat(commandBuffer.length) + "\r$ ");
-                historyIndex--;
-                commandBuffer =
-                  historyIndex >= 0 ? commandHistory[historyIndex] : "";
-                cursorPosition = commandBuffer.length;
-                term.write(commandBuffer);
-                document.title = title.text + title.prompt + commandBuffer;
+                state.term.write(
+                  "\r$ " + " ".repeat(state.commandBuffer.length) + "\r$ "
+                );
+                state.historyIndex--;
+                state.commandBuffer =
+                  state.historyIndex >= 0
+                    ? state.commandHistory[state.historyIndex]
+                    : "";
+                state.cursorPosition = state.commandBuffer.length;
+                state.term.write(state.commandBuffer);
+                document.title =
+                  title.text + title.prompt + state.commandBuffer;
               }
               break;
             default:
               if (data >= String.fromCharCode(32)) {
                 // Insert character at cursor position
-                const start = commandBuffer.slice(0, cursorPosition);
-                const end = commandBuffer.slice(cursorPosition);
-                commandBuffer = start + data + end;
-                cursorPosition++;
-                term.write(data + end + "\b".repeat(end.length));
-                document.title = title.text + title.prompt + commandBuffer;
+                const start = state.commandBuffer.slice(
+                  0,
+                  state.cursorPosition
+                );
+                const end = state.commandBuffer.slice(state.cursorPosition);
+                state.commandBuffer = start + data + end;
+                state.cursorPosition++;
+                state.term.write(data + end + "\b".repeat(end.length));
+                document.title =
+                  title.text + title.prompt + state.commandBuffer;
               }
           }
         }
@@ -249,32 +404,27 @@ document.addEventListener("DOMContentLoaded", () => {
     clear: () => {
       terminal.clear();
     },
-    exit: () => {
-      terminal.print("Closing terminal...");
-      setTimeout(() => {
-        terminal.clear();
-        terminal.elem.classList.remove("active");
-        terminalActive = false;
-        awaitingPassword = false;
-        document.title = blinkStates[0];
-        term.dispose();
-        term = null;
-      }, 1000);
-    },
+    exit: closeTerminal,
     access: () => {
-      awaitingPassword = true;
+      state.awaitingPassword = true;
       terminal.print("Password required:");
+      state.startPasswordTimeout(() => {
+        terminal.print("Password timeout. Session terminated.");
+        closeTerminal();
+      });
     },
   };
 
   const processCommand = async (cmd) => {
-    if (awaitingPassword) {
+    if (state.awaitingPassword) {
       terminal.print("Verifying access...");
       try {
         // Load and attempt to decrypt the secret commands
         const response = await fetch("/secret-commands.js.enc");
         if (!response.ok) {
-          throw new Error(`Failed to load encrypted file: ${response.status}`);
+          throw new Error(
+            `Network error: Failed to load encrypted file (${response.status})`
+          );
         }
         const encryptedData = await response.arrayBuffer();
 
@@ -329,29 +479,32 @@ document.addEventListener("DOMContentLoaded", () => {
         secureExec(terminal, commands);
 
         terminal.print("Type 'help' to see available commands");
-        awaitingPassword = false;
+        state.awaitingPassword = false;
+        state.clearPasswordTimeout();
         terminal.prompt();
       } catch (e) {
-        terminal.print(`Error: ${e.message}`);
-        terminal.print("Access denied.");
-        terminal.print("Terminal shutting down...");
-        setTimeout(() => {
-          terminal.elem.classList.remove("active");
-          terminalActive = false;
-          awaitingPassword = false;
-          document.title = blinkStates[0];
-          term.dispose();
-          term = null;
-        }, 2000);
+        let errorMessage = "Access denied: ";
+        if (e.message.includes("Network error")) {
+          errorMessage += "Could not load secret commands";
+        } else if (e.name === "OperationError") {
+          errorMessage += "Invalid password";
+        } else {
+          errorMessage += "Unknown error occurred";
+        }
+        terminal.print(errorMessage);
+        state.awaitingPassword = false;
+        state.clearPasswordTimeout();
+        terminal.prompt();
       }
       return;
     }
 
-    const [command, ...args] = cmd.toLowerCase().trim().split(" ");
+    const [command, ...args] = cmd.trim().split(" ");
+    const commandLower = command.toLowerCase();
 
-    if (command in commands) {
-      commands[command](args);
-      if (!awaitingPassword && command !== "exit") {
+    if (commandLower in commands) {
+      commands[commandLower](args);
+      if (!state.awaitingPassword && commandLower !== "exit") {
         terminal.prompt();
       }
     } else {
@@ -363,7 +516,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Title blink effect
   const blinkInterval = setInterval(() => {
-    if (!terminalActive) {
+    if (!state.active) {
       const currentTitle = document.title.toLowerCase().trim();
       if (
         blinkStates.map((s) => s.toLowerCase().trim()).includes(currentTitle)
@@ -374,19 +527,20 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } else {
       const baseTitle =
-        title.text + title.prompt + (commandBuffer.trim() || "");
+        title.text + title.prompt + (state.commandBuffer.trim() || "");
       document.title =
         document.title === baseTitle + title.cursor
           ? baseTitle
           : baseTitle + title.cursor;
     }
   }, blinkTime);
+  state.addInterval(blinkInterval);
 
   // Direct title change check
   const checkTitleChange = () => {
     const currentTitle = document.title.toLowerCase().trim();
     if (
-      !terminalActive &&
+      !state.active &&
       !blinkStates.map((s) => s.toLowerCase().trim()).includes(currentTitle)
     ) {
       const command = currentTitle
@@ -394,19 +548,21 @@ document.addEventListener("DOMContentLoaded", () => {
         .trim();
       activateTerminal();
       setTimeout(() => {
-        term.write(`${command}\r\n`);
+        state.term.write(`${command}\r\n`);
         processCommand(command);
       }, 100);
     }
   };
 
-  // Check title changes frequently
   const titleCheckInterval = setInterval(checkTitleChange, 100);
+  state.addInterval(titleCheckInterval);
 
   // Add window resize handler
-  window.addEventListener("resize", () => {
-    if (terminalActive) {
-      fitAddon.fit();
+  const handleResize = () => {
+    if (state.active) {
+      state.fitAddon.fit();
     }
-  });
+  };
+  state.resizeHandler = handleResize;
+  window.addEventListener("resize", handleResize);
 });
