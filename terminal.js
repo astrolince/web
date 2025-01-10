@@ -225,6 +225,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Handle input
       state.term.onData((data) => {
+        // Handle Ctrl+C
+        if (data === "\x03") {
+          state.term.write("^C");
+          state.commandBuffer = "";
+          state.cursorPosition = 0;
+          if (state.awaitingPassword) {
+            state.awaitingPassword = false;
+            state.clearPasswordTimeout();
+          }
+          terminal.prompt();
+          return;
+        }
+
         if (state.awaitingPassword) {
           // Handle password input
           switch (data) {
