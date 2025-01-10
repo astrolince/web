@@ -179,6 +179,48 @@ document.addEventListener("DOMContentLoaded", () => {
       titleBar.innerHTML = `<span class="terminal-icon">&gt;</span>Terminal`;
       terminal.elem.appendChild(titleBar);
 
+      // Add dragging functionality
+      let isDragging = false;
+      let offsetX;
+      let offsetY;
+
+      const dragStart = (e) => {
+        if (terminal.elem.classList.contains("maximized")) return;
+
+        if (e.target === titleBar || e.target.parentNode === titleBar) {
+          const rect = terminal.elem.getBoundingClientRect();
+
+          // Reset transform and set initial position
+          terminal.elem.style.transform = "none";
+          terminal.elem.style.left = `${rect.left}px`;
+          terminal.elem.style.top = `${rect.top}px`;
+
+          // Calculate offset from the cursor to the window corner
+          offsetX = e.clientX - rect.left;
+          offsetY = e.clientY - rect.top;
+
+          isDragging = true;
+          terminal.elem.classList.add("dragging");
+        }
+      };
+
+      const dragEnd = () => {
+        isDragging = false;
+        terminal.elem.classList.remove("dragging");
+      };
+
+      const drag = (e) => {
+        if (isDragging) {
+          e.preventDefault();
+          terminal.elem.style.left = `${e.clientX - offsetX}px`;
+          terminal.elem.style.top = `${e.clientY - offsetY}px`;
+        }
+      };
+
+      titleBar.addEventListener("mousedown", dragStart);
+      document.addEventListener("mousemove", drag);
+      document.addEventListener("mouseup", dragEnd);
+
       // Add terminal container
       const terminalContainer = document.createElement("div");
       terminalContainer.id = "terminal";

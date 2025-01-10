@@ -42,6 +42,14 @@ a {
   transition: all 0.3s ease;
 }
 
+.secret-terminal.dragging {
+  transition: none;
+}
+
+.secret-terminal.active {
+  display: block;
+}
+
 .secret-terminal.minimized {
   transform: translate(-50%, 100vh);
   opacity: 0;
@@ -72,6 +80,12 @@ a {
   height: 24px;
   line-height: 24px;
   user-select: none;
+  cursor: grab;
+  -webkit-app-region: drag;
+}
+
+.terminal-title:active {
+  cursor: grabbing;
 }
 
 .terminal-icon {
@@ -128,6 +142,7 @@ a {
   display: flex;
   gap: 8px;
   margin-left: auto;
+  -webkit-app-region: no-drag;
 }
 
 .window-button {
