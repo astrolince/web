@@ -1,3 +1,33 @@
+// Constants
+const CONSTANTS = {
+  TIMEOUT: {
+    TRANSITION: 100 * 1.5, // Animation transition time (0.1s + delay)
+    TITLE_BLINK: 530, // Title blink interval
+    COMMAND_EXEC: 100, // Command execution delay
+  },
+  KEYS: {
+    CTRL_C: "\x03",
+    ENTER: "\r",
+    BACKSPACE: "\u007F",
+    ARROW: {
+      LEFT: "\u001b[D",
+      RIGHT: "\u001b[C",
+      UP: "\u001b[A",
+      DOWN: "\u001b[B",
+    },
+  },
+  TERMINAL: {
+    FONT_SIZE: 16,
+    FONT_FAMILY: "monospace",
+    SCROLLBACK: 1000,
+    THEME: {
+      background: "rgba(0, 0, 0, 0.9)",
+      foreground: "#0f0",
+      cursor: "#0f0",
+    },
+  },
+};
+
 // Terminal state management
 class TerminalState {
   constructor() {
@@ -10,31 +40,12 @@ class TerminalState {
     this.commandHistory = [];
     this.historyIndex = -1;
     this.intervals = [];
-    this.passwordTimer = null;
-    this.PASSWORD_TIMEOUT = 30000; // 30 seconds
     this.resizeHandler = null;
-  }
-
-  startPasswordTimeout(onTimeout) {
-    this.clearPasswordTimeout();
-    this.passwordTimer = setTimeout(() => {
-      if (this.awaitingPassword) {
-        onTimeout();
-      }
-    }, this.PASSWORD_TIMEOUT);
-  }
-
-  clearPasswordTimeout() {
-    if (this.passwordTimer) {
-      clearTimeout(this.passwordTimer);
-      this.passwordTimer = null;
-    }
   }
 
   cleanup() {
     this.intervals.forEach(clearInterval);
     this.intervals = [];
-    this.clearPasswordTimeout();
     if (this.term) {
       this.term.dispose();
       this.term = null;
@@ -72,57 +83,13 @@ document.title = blinkStates[0];
 
 document.addEventListener("DOMContentLoaded", () => {
   const state = new TerminalState();
-
-  // Get taskbar element
-  const taskbar = document.getElementById("terminal-taskbar");
-
-  // Add taskbar click handler
-  taskbar.addEventListener("click", () => {
-    terminal.restore();
-    taskbar.classList.remove("active");
-  });
-
-  const closeTerminal = () => {
-    // Remove all terminal classes
-    terminal.elem.classList.remove("active", "minimized", "maximized");
-    // Reset title
-    document.title = blinkStates[0];
-    // Clean up state
-    state.cleanup();
-    // Remove taskbar
-    taskbar.classList.remove("active");
-    taskbar.style.display = "none";
-  };
-
-  const initializeTerminal = () => {
-    // Initialize xterm.js
-    state.term = new Terminal({
-      cursorBlink: true,
-      theme: {
-        background: "rgba(0, 0, 0, 0.9)",
-        foreground: "#0f0",
-        cursor: "#0f0",
-      },
-      fontSize: 16,
-      fontFamily: "monospace",
-      scrollback: 1000,
-    });
-
-    // Initialize and load the fit addon
-    state.fitAddon = new FitAddon.FitAddon();
-    state.term.loadAddon(state.fitAddon);
-  };
-
-  // Initialize terminal first time
-  initializeTerminal();
+  const ui = new TerminalUI(state);
 
   const terminal = {
-    elem: document.getElementById("terminal-window"),
-
+    elem: ui.elem,
     print: (text) => {
       state.term.writeln(text);
     },
-
     clear: () => {
       state.term.clear();
       state.term.reset();
@@ -130,34 +97,36 @@ document.addEventListener("DOMContentLoaded", () => {
       terminal.print("=== RESTRICTED ACCESS TERMINAL ===");
       terminal.print("Type 'help' to see available commands");
     },
-
     prompt: () => {
       document.title = title.text + title.prompt;
       state.term.write("\r\n$ ");
     },
+    minimize: () => ui.minimize(),
+    maximize: () => ui.maximize(),
+    restore: () => ui.restore(),
+  };
 
-    minimize: () => {
-      terminal.elem.classList.add("minimized");
-      taskbar.classList.add("active");
-    },
+  const closeTerminal = () => ui.close();
 
-    maximize: () => {
-      terminal.elem.classList.remove("minimized");
-      terminal.elem.classList.add("maximized");
-      taskbar.classList.remove("active");
-      state.fitAddon.fit();
-    },
+  const initializeTerminal = () => {
+    // Initialize xterm.js
+    state.term = new Terminal({
+      cursorBlink: true,
+      theme: CONSTANTS.TERMINAL.THEME,
+      fontSize: CONSTANTS.TERMINAL.FONT_SIZE,
+      fontFamily: CONSTANTS.TERMINAL.FONT_FAMILY,
+      scrollback: CONSTANTS.TERMINAL.SCROLLBACK,
+    });
 
-    restore: () => {
-      terminal.elem.classList.remove("minimized");
-      state.fitAddon.fit();
-    },
+    // Initialize and load the fit addon
+    state.fitAddon = new FitAddon.FitAddon();
+    state.term.loadAddon(state.fitAddon);
   };
 
   const activateTerminal = () => {
     if (!state.active) {
       // Reset taskbar style
-      taskbar.style.display = "";
+      ui.taskbar.style.display = "";
 
       // Reinitialize terminal if needed
       if (!state.term) {
@@ -165,89 +134,14 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       state.active = true;
-      terminal.elem.classList.add("active");
+      ui.elem.classList.add("active");
 
-      // Get title bar elements
-      const titleBar = terminal.elem.querySelector(".window-title");
-      const controls = titleBar.querySelector(".window-controls");
-
-      // Add dragging functionality
-      let isDragging = false;
-      let offsetX;
-      let offsetY;
-
-      const dragStart = (e) => {
-        if (terminal.elem.classList.contains("maximized")) return;
-
-        if (e.target === titleBar || e.target.parentNode === titleBar) {
-          const rect = terminal.elem.getBoundingClientRect();
-
-          // Reset transform and set initial position
-          terminal.elem.style.transform = "none";
-          terminal.elem.style.left = `${rect.left}px`;
-          terminal.elem.style.top = `${rect.top}px`;
-
-          // Calculate offset from the cursor to the window corner
-          offsetX = e.clientX - rect.left;
-          offsetY = e.clientY - rect.top;
-
-          isDragging = true;
-          terminal.elem.classList.add("dragging");
-        }
-      };
-
-      const dragEnd = () => {
-        isDragging = false;
-        terminal.elem.classList.remove("dragging");
-      };
-
-      const drag = (e) => {
-        if (isDragging) {
-          e.preventDefault();
-          terminal.elem.style.left = `${e.clientX - offsetX}px`;
-          terminal.elem.style.top = `${e.clientY - offsetY}px`;
-        }
-      };
-
-      titleBar.addEventListener("mousedown", dragStart);
-      document.addEventListener("mousemove", drag);
-      document.addEventListener("mouseup", dragEnd);
-
-      // Add click handlers for window controls
-      controls.querySelector(".close").addEventListener("click", closeTerminal);
-
-      controls.querySelector(".minimize").addEventListener("click", () => {
-        terminal.minimize();
-      });
-
-      controls.querySelector(".maximize").addEventListener("click", () => {
-        if (terminal.elem.classList.contains("maximized")) {
-          terminal.elem.classList.remove("maximized");
-          // Restore the transform for centered positioning
-          terminal.elem.style.transform = "translate(-50%, -50%)";
-          terminal.elem.style.left = "50%";
-          terminal.elem.style.top = "50%";
-        } else {
-          terminal.elem.classList.add("maximized");
-          // Reset positioning for maximized state
-          terminal.elem.style.transform = "none";
-          terminal.elem.style.left = "0";
-          terminal.elem.style.top = "0";
-        }
-        // Add a small delay to ensure the transition is complete
-        setTimeout(() => {
-          state.fitAddon.fit();
-        }, 300);
-      });
-
-      state.term.open(document.getElementById("terminal-content"));
+      state.term.open(ui.content);
       state.term.clear();
       state.term.focus();
 
       // Fit terminal to container
-      setTimeout(() => {
-        state.fitAddon.fit();
-      }, 0);
+      ui.handleResize();
 
       terminal.print("=== RESTRICTED ACCESS TERMINAL ===");
       terminal.print("Type 'help' to see available commands");
@@ -256,13 +150,12 @@ document.addEventListener("DOMContentLoaded", () => {
       // Handle input
       state.term.onData((data) => {
         // Handle Ctrl+C
-        if (data === "\x03") {
+        if (data === CONSTANTS.KEYS.CTRL_C) {
           state.term.write("^C");
           state.commandBuffer = "";
           state.cursorPosition = 0;
           if (state.awaitingPassword) {
             state.awaitingPassword = false;
-            state.clearPasswordTimeout();
           }
           terminal.prompt();
           return;
@@ -271,13 +164,13 @@ document.addEventListener("DOMContentLoaded", () => {
         if (state.awaitingPassword) {
           // Handle password input
           switch (data) {
-            case "\r": // Enter
+            case CONSTANTS.KEYS.ENTER: // Enter
               state.term.writeln("");
               processCommand(state.commandBuffer);
               state.commandBuffer = "";
               state.cursorPosition = 0;
               break;
-            case "\u007F": // Backspace
+            case CONSTANTS.KEYS.BACKSPACE: // Backspace
               if (state.commandBuffer.length > 0 && state.cursorPosition > 0) {
                 const start = state.commandBuffer.slice(
                   0,
@@ -294,13 +187,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
               }
               break;
-            case "\u001b[D": // Left arrow
+            case CONSTANTS.KEYS.ARROW.LEFT: // Left arrow
               if (state.cursorPosition > 0) {
                 state.cursorPosition--;
                 state.term.write(data);
               }
               break;
-            case "\u001b[C": // Right arrow
+            case CONSTANTS.KEYS.ARROW.RIGHT: // Right arrow
               if (state.cursorPosition < state.commandBuffer.length) {
                 state.cursorPosition++;
                 state.term.write(data);
@@ -325,7 +218,7 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
           // Handle normal input
           switch (data) {
-            case "\r": // Enter
+            case CONSTANTS.KEYS.ENTER: // Enter
               if (state.commandBuffer.trim()) {
                 state.term.writeln("");
                 processCommand(state.commandBuffer.trim());
@@ -339,7 +232,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 terminal.prompt();
               }
               break;
-            case "\u007F": // Backspace
+            case CONSTANTS.KEYS.BACKSPACE: // Backspace
               if (state.commandBuffer.length > 0 && state.cursorPosition > 0) {
                 const start = state.commandBuffer.slice(
                   0,
@@ -360,19 +253,19 @@ document.addEventListener("DOMContentLoaded", () => {
                   title.text + title.prompt + state.commandBuffer;
               }
               break;
-            case "\u001b[D": // Left arrow
+            case CONSTANTS.KEYS.ARROW.LEFT: // Left arrow
               if (state.cursorPosition > 0) {
                 state.cursorPosition--;
                 state.term.write(data);
               }
               break;
-            case "\u001b[C": // Right arrow
+            case CONSTANTS.KEYS.ARROW.RIGHT: // Right arrow
               if (state.cursorPosition < state.commandBuffer.length) {
                 state.cursorPosition++;
                 state.term.write(data);
               }
               break;
-            case "\u001b[A": // Up arrow
+            case CONSTANTS.KEYS.ARROW.UP: // Up arrow
               if (
                 !state.awaitingPassword &&
                 state.historyIndex < state.commandHistory.length - 1
@@ -389,7 +282,7 @@ document.addEventListener("DOMContentLoaded", () => {
                   title.text + title.prompt + state.commandBuffer;
               }
               break;
-            case "\u001b[B": // Down arrow
+            case CONSTANTS.KEYS.ARROW.DOWN: // Down arrow
               if (!state.awaitingPassword && state.historyIndex > -1) {
                 // Clear current line
                 state.term.write(
@@ -444,10 +337,6 @@ document.addEventListener("DOMContentLoaded", () => {
     access: () => {
       state.awaitingPassword = true;
       terminal.print("Password required:");
-      state.startPasswordTimeout(() => {
-        terminal.print("Password timeout. Session terminated.");
-        closeTerminal();
-      });
     },
   };
 
@@ -516,7 +405,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
         terminal.print("Type 'help' to see available commands");
         state.awaitingPassword = false;
-        state.clearPasswordTimeout();
         terminal.prompt();
       } catch (e) {
         let errorMessage = "Access denied: ";
@@ -529,7 +417,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         terminal.print(errorMessage);
         state.awaitingPassword = false;
-        state.clearPasswordTimeout();
         terminal.prompt();
       }
       return;
@@ -570,7 +457,7 @@ document.addEventListener("DOMContentLoaded", () => {
           ? baseTitle
           : baseTitle + title.cursor;
     }
-  }, blinkTime);
+  }, CONSTANTS.TIMEOUT.TITLE_BLINK);
   state.addInterval(blinkInterval);
 
   // Direct title change check
@@ -591,15 +478,138 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  const titleCheckInterval = setInterval(checkTitleChange, 100);
+  const titleCheckInterval = setInterval(
+    checkTitleChange,
+    CONSTANTS.TIMEOUT.COMMAND_EXEC
+  );
   state.addInterval(titleCheckInterval);
-
-  // Add window resize handler
-  const handleResize = () => {
-    if (state.active) {
-      state.fitAddon.fit();
-    }
-  };
-  state.resizeHandler = handleResize;
-  window.addEventListener("resize", handleResize);
 });
+
+class TerminalUI {
+  constructor(state) {
+    this.state = state;
+    this.elem = document.getElementById("terminal-window");
+    this.taskbar = document.getElementById("terminal-taskbar");
+    this.titleBar = this.elem.querySelector(".window-title");
+    this.controls = this.titleBar.querySelector(".window-controls");
+    this.content = document.getElementById("terminal-content");
+
+    this.isDragging = false;
+    this.offsetX = 0;
+    this.offsetY = 0;
+
+    // Bind methods
+    this.handleDragStart = this.handleDragStart.bind(this);
+    this.handleDrag = this.handleDrag.bind(this);
+    this.handleDragEnd = this.handleDragEnd.bind(this);
+    this.handleResize = this.handleResize.bind(this);
+
+    this.initializeEventListeners();
+  }
+
+  initializeEventListeners() {
+    // Window controls
+    this.controls
+      .querySelector(".close")
+      .addEventListener("click", () => this.close());
+    this.controls
+      .querySelector(".minimize")
+      .addEventListener("click", () => this.minimize());
+    this.controls
+      .querySelector(".maximize")
+      .addEventListener("click", () => this.toggleMaximize());
+
+    // Dragging
+    this.titleBar.addEventListener("mousedown", this.handleDragStart);
+    document.addEventListener("mousemove", this.handleDrag);
+    document.addEventListener("mouseup", this.handleDragEnd);
+
+    // Resize
+    window.addEventListener("resize", this.handleResize);
+
+    // Taskbar
+    this.taskbar.addEventListener("click", () => {
+      this.restore();
+      this.taskbar.classList.remove("active");
+    });
+  }
+
+  handleDragStart(e) {
+    if (this.elem.classList.contains("maximized")) return;
+
+    if (e.target === this.titleBar || e.target.parentNode === this.titleBar) {
+      const rect = this.elem.getBoundingClientRect();
+
+      this.elem.style.transform = "none";
+      this.elem.style.left = `${rect.left}px`;
+      this.elem.style.top = `${rect.top}px`;
+
+      this.offsetX = e.clientX - rect.left;
+      this.offsetY = e.clientY - rect.top;
+
+      this.isDragging = true;
+      this.elem.classList.add("dragging");
+    }
+  }
+
+  handleDrag(e) {
+    if (this.isDragging) {
+      e.preventDefault();
+      this.elem.style.left = `${e.clientX - this.offsetX}px`;
+      this.elem.style.top = `${e.clientY - this.offsetY}px`;
+    }
+  }
+
+  handleDragEnd() {
+    this.isDragging = false;
+    this.elem.classList.remove("dragging");
+  }
+
+  handleResize() {
+    if (this.state.active) {
+      setTimeout(() => {
+        this.state.fitAddon.fit();
+      }, CONSTANTS.TIMEOUT.TRANSITION);
+    }
+  }
+
+  close() {
+    this.elem.classList.remove("active", "minimized", "maximized");
+    document.title = blinkStates[0];
+    this.state.cleanup();
+    this.taskbar.classList.remove("active");
+    this.taskbar.style.display = "none";
+  }
+
+  minimize() {
+    this.elem.classList.add("minimized");
+    this.taskbar.classList.add("active");
+  }
+
+  maximize() {
+    this.elem.classList.remove("minimized");
+    this.elem.classList.add("maximized");
+    this.taskbar.classList.remove("active");
+    this.handleResize();
+  }
+
+  restore() {
+    this.elem.classList.remove("minimized");
+    this.handleResize();
+  }
+
+  toggleMaximize() {
+    if (this.elem.classList.contains("maximized")) {
+      this.elem.classList.remove("maximized");
+      this.elem.style.transform = "translate(-50%, -50%)";
+      this.elem.style.left = "50%";
+      this.elem.style.top = "50%";
+    } else {
+      this.elem.classList.add("maximized");
+      this.elem.style.transform = "none";
+      this.elem.style.left = "0";
+      this.elem.style.top = "0";
+    }
+    this.handleResize();
+  }
+}
