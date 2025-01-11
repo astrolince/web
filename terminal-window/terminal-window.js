@@ -74,7 +74,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const state = new TerminalState();
 
   // Get taskbar element
-  const taskbar = document.querySelector(".terminal-taskbar");
+  const taskbar = document.getElementById("terminal-taskbar");
 
   // Add taskbar click handler
   taskbar.addEventListener("click", () => {
@@ -117,7 +117,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initializeTerminal();
 
   const terminal = {
-    elem: document.getElementById("secretTerminal"),
+    elem: document.getElementById("terminal-window"),
 
     print: (text) => {
       state.term.writeln(text);
@@ -168,7 +168,7 @@ document.addEventListener("DOMContentLoaded", () => {
       terminal.elem.classList.add("active");
 
       // Get title bar elements
-      const titleBar = terminal.elem.querySelector(".terminal-title");
+      const titleBar = terminal.elem.querySelector(".window-title");
       const controls = titleBar.querySelector(".window-controls");
 
       // Add dragging functionality
@@ -240,7 +240,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }, 300);
       });
 
-      state.term.open(document.getElementById("terminal"));
+      state.term.open(document.getElementById("terminal-content"));
       state.term.clear();
       state.term.focus();
 
@@ -456,7 +456,7 @@ document.addEventListener("DOMContentLoaded", () => {
       terminal.print("Verifying access...");
       try {
         // Load and attempt to decrypt the secret commands
-        const response = await fetch("/secret-commands.js.enc");
+        const response = await fetch("/terminal-window/secret-commands.js.enc");
         if (!response.ok) {
           throw new Error(
             `Network error: Failed to load encrypted file (${response.status})`
