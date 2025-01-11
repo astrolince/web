@@ -73,12 +73,10 @@ document.title = blinkStates[0];
 document.addEventListener("DOMContentLoaded", () => {
   const state = new TerminalState();
 
-  // Create taskbar element
-  const taskbar = document.createElement("div");
-  taskbar.className = "terminal-taskbar";
-  taskbar.innerHTML = `<span class="terminal-icon">&gt;</span>Terminal`;
-  document.body.appendChild(taskbar);
+  // Get taskbar element
+  const taskbar = document.querySelector(".terminal-taskbar");
 
+  // Add taskbar click handler
   taskbar.addEventListener("click", () => {
     terminal.restore();
     taskbar.classList.remove("active");
@@ -89,8 +87,6 @@ document.addEventListener("DOMContentLoaded", () => {
     terminal.elem.classList.remove("active", "minimized", "maximized");
     // Reset title
     document.title = blinkStates[0];
-    // Clear the terminal container before cleanup
-    terminal.elem.innerHTML = "";
     // Clean up state
     state.cleanup();
     // Remove taskbar
@@ -160,9 +156,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const activateTerminal = () => {
     if (!state.active) {
-      // Clean up any existing elements first
-      terminal.elem.innerHTML = "";
-
       // Reset taskbar style
       taskbar.style.display = "";
 
@@ -174,11 +167,9 @@ document.addEventListener("DOMContentLoaded", () => {
       state.active = true;
       terminal.elem.classList.add("active");
 
-      // Add title bar
-      const titleBar = document.createElement("div");
-      titleBar.className = "terminal-title";
-      titleBar.innerHTML = `<span class="terminal-icon">&gt;</span>Terminal`;
-      terminal.elem.appendChild(titleBar);
+      // Get title bar elements
+      const titleBar = terminal.elem.querySelector(".terminal-title");
+      const controls = titleBar.querySelector(".window-controls");
 
       // Add dragging functionality
       let isDragging = false;
@@ -222,21 +213,6 @@ document.addEventListener("DOMContentLoaded", () => {
       document.addEventListener("mousemove", drag);
       document.addEventListener("mouseup", dragEnd);
 
-      // Add terminal container
-      const terminalContainer = document.createElement("div");
-      terminalContainer.id = "terminal";
-      terminal.elem.appendChild(terminalContainer);
-
-      // Add window control buttons
-      const controls = document.createElement("div");
-      controls.className = "window-controls";
-      controls.innerHTML = `
-        <button class="window-button minimize" title="Minimize"></button>
-        <button class="window-button maximize" title="Maximize"></button>
-        <button class="window-button close" title="Close"></button>
-      `;
-      titleBar.appendChild(controls);
-
       // Add click handlers for window controls
       controls.querySelector(".close").addEventListener("click", closeTerminal);
 
@@ -258,7 +234,10 @@ document.addEventListener("DOMContentLoaded", () => {
           terminal.elem.style.left = "0";
           terminal.elem.style.top = "0";
         }
-        state.fitAddon.fit();
+        // Add a small delay to ensure the transition is complete
+        setTimeout(() => {
+          state.fitAddon.fit();
+        }, 300);
       });
 
       state.term.open(document.getElementById("terminal"));
